@@ -22,7 +22,24 @@ MANIFEST = PHOTO_DIR / "collections.json"
 
 EVENT_PHOTO = "photo_puller_updated"
 EVENT_COLLECTIONS = "photo_puller_collections_changed"
-SUPERVISOR_TOKEN = os.environ.get("SUPERVISOR_TOKEN")
+S6_ENV_DIRS = ("/run/s6/container_environment", "/var/run/s6/container_environment")
+
+
+def get_supervisor_token():
+    """The base image's s6-overlay strips env vars from our process, so if the token isn't
+    in the environment, read it from where s6 stashes the container environment."""
+    token = os.environ.get("SUPERVISOR_TOKEN")
+    if token:
+        return token
+    for d in S6_ENV_DIRS:
+        try:
+            return (Path(d) / "SUPERVISOR_TOKEN").read_text().strip()
+        except OSError:
+            pass
+    return None
+
+
+SUPERVISOR_TOKEN = get_supervisor_token()
 UNSPLASH_API = "https://api.unsplash.com"
 INGRESS_IPS = {"172.30.32.2", "127.0.0.1"}  # only the HA ingress gateway may talk to us
 ORIENTATIONS = ("landscape", "portrait", "both")
@@ -378,6 +395,7 @@ class Handler(BaseHTTPRequestHandler):
 def main():
     load_collections()  # creates the defaults on first run
     threading.Thread(target=worker.run, daemon=True).start()
+    log("Home Assistant link: " + ("OK" if SUPERVISOR_TOKEN else "NO TOKEN, entities won't update live"))
     log(f"Photo Puller UI listening on port {PORT}")
     ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
 
