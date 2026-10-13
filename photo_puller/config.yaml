@@ -1,5 +1,5 @@
 name: "Photo Puller"
-version: "1.2.2"
+version: "1.2.3"
 slug: photo_puller
 description: "Pulls random Unsplash photos for collections you manage in a web UI (city, ocean, whatever) and tells Home Assistant when a new one lands"
 arch:
@@ -15,7 +15,7 @@ ingress_port: 8099
 panel_icon: mdi:image-multiple
 panel_title: "Photo Puller"
 map:
-  - share:rw
+  - addon_configs:rw
 options:
   unsplash_access_key: ""
   interval_minutes: 60
