@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Photo Puller</title>
+<style>
+  :root { color-scheme: light dark; --bg:#f4f5f7; --card:#fff; --text:#1f2937; --muted:#6b7280; --line:#d9dce1;
+          --accent:#6d28d9; --accent2:#0ea5e9; --danger:#dc2626; --ok:#16a34a; --warn:#d97706; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#12141a; --card:#1c1f27; --text:#f3f4f6; --muted:#9ca3af; --line:#333845; } }
+  * { box-sizing: border-box; }
+  body { margin:0; font:15px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--text); padding-bottom:90px; }
+  header { padding:18px 16px 6px; max-width:760px; margin:0 auto; }
+  h1 { margin:0 0 4px; font-size:22px; }
+  .sub { color:var(--muted); font-size:13px; }
+  main { max-width:760px; margin:0 auto; padding:8px 16px; }
+  .banner { border-radius:10px; padding:10px 12px; margin:10px 0; font-size:14px; }
+  .banner.warn { background:rgba(217,119,6,.15); border:1px solid var(--warn); }
+  .banner.bad { background:rgba(220,38,38,.12); border:1px solid var(--danger); }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px; margin:12px 0; }
+  .row { display:flex; gap:8px; align-items:center; }
+  label { display:block; font-size:12px; font-weight:600; color:var(--muted); margin:12px 0 4px; text-transform:uppercase; letter-spacing:.04em; }
+  input, textarea { width:100%; font:inherit; color:var(--text); background:transparent; border:1px solid var(--line); border-radius:9px; padding:9px 10px; }
+  input:focus, textarea:focus { outline:2px solid var(--accent2); border-color:transparent; }
+  textarea { resize:vertical; min-height:84px; }
+  .name { font-weight:600; font-size:16px; }
+  button { font:inherit; cursor:pointer; border-radius:9px; border:1px solid var(--line); background:transparent; color:var(--text); padding:9px 14px; }
+  button:disabled { opacity:.45; cursor:not-allowed; }
+  button.primary { background:linear-gradient(135deg,var(--accent2),var(--accent)); color:#fff; border:none; font-weight:600; }
+  button.danger { color:var(--danger); }
+  button.icon { padding:9px 12px; flex:none; }
+  .seg { display:flex; border:1px solid var(--line); border-radius:9px; overflow:hidden; }
+  .seg button { flex:1; border:none; border-radius:0; padding:9px 6px; }
+  .seg button.on { background:var(--accent); color:#fff; font-weight:600; }
+  .hint { font-size:12px; color:var(--muted); margin-top:8px; word-break:break-all; }
+  .thumbs { display:flex; gap:10px; margin-top:12px; flex-wrap:wrap; }
+  figure { margin:0; flex:1 1 140px; max-width:100%; }
+  figure img { width:100%; height:110px; object-fit:cover; border-radius:9px; display:block; background:var(--line); }
+  figcaption { font-size:11px; color:var(--muted); margin-top:3px; }
+  figcaption.err { color:var(--danger); }
+  .bar { position:fixed; left:0; right:0; bottom:0; background:var(--card); border-top:1px solid var(--line); padding:10px 16px calc(10px + env(safe-area-inset-bottom)); }
+  .bar .in { max-width:760px; margin:0 auto; display:flex; gap:8px; }
+  .bar button.primary { flex:1; }
+  #toast { position:fixed; left:50%; transform:translateX(-50%); bottom:84px; background:#111827; color:#fff; padding:10px 16px; border-radius:10px; font-size:14px; opacity:0; transition:opacity .2s; pointer-events:none; max-width:90%; text-align:center; }
+  #toast.show { opacity:1; } #toast.err { background:var(--danger); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Photo Puller</h1>
+  <div class="sub" id="status">Loading...</div>
+</header>
+<main>
+  <div id="banners"></div>
+  <div id="list"></div>
+  <button id="add" style="width:100%;margin-top:6px">+ Add collection</button>
+</main>
+<div class="bar"><div class="in">
+  <button id="fetchall">Fetch all now</button>
+  <button class="primary" id="save">Save changes</button>
+</div></div>
+<div id="toast"></div>
+
+<script>
+const BASE = location.pathname.replace(/\/?$/, "/");
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const slugify = n => n.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+
+async function api(path, body) {
+  const r = await fetch(BASE + path, body === undefined ? {} :
+    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || "Request failed (" + r.status + ")");
+  return j;
+}
+
+let state = null;      // last server state
+let items = [];        // editable collections: {name, termsText, orientation}
+let dirty = false;
+
+function toast(msg, err) {
+  const t = $("#toast");
+  t.textContent = msg; t.className = "show" + (err ? " err" : "");
+  clearTimeout(toast.h); toast.h = setTimeout(() => t.className = "", 3200);
+}
+
+const orientsOf = o => o === "both" ? ["landscape", "portrait"] : [o];
+
+function thumbsHtml(it) {
+  const slug = slugify(it.name);
+  if (!state || !slug) return "";
+  return orientsOf(it.orientation).map(o => {
+    const info = state.images[slug + "_" + o];
+    if (!info) return "";
+    const label = o[0].toUpperCase() + o.slice(1);
+    if (info.error) return `<figure><figcaption class="err">${label}: ${esc(info.error)}</figcaption></figure>`;
+    if (!info.has_image) return `<figure><figcaption>${label}: waiting for first photo...</figcaption></figure>`;
+    const m = info.meta || {};
+    return `<figure><img loading="lazy" src="${BASE}image/${slug}_${o}.jpg?t=${encodeURIComponent(m.fetched_at || "")}">` +
+           `<figcaption>${label}${m.photographer ? " · " + esc(m.photographer) : ""}${m.search_term ? " · " + esc(m.search_term) : ""}</figcaption></figure>`;
+  }).join("");
+}
+
+function render() {
+  $("#list").innerHTML = items.map((it, i) => {
+    const slug = slugify(it.name) || "name";
+    const ents = orientsOf(it.orientation).map(o => `image.${slug}_photos_${o}`).join("  ·  ");
+    const seg = ["landscape", "portrait", "both"].map(o =>
+      `<button data-act="orient" data-o="${o}" class="${it.orientation === o ? "on" : ""}">${o[0].toUpperCase() + o.slice(1)}</button>`).join("");
+    return `<div class="card" data-i="${i}">
+      <div class="row"><input class="name" data-f="name" placeholder="Collection name (City, Ocean...)" value="${esc(it.name)}">
+        <button class="icon danger" data-act="del" title="Delete">✕</button></div>
+      <label>Search terms (one per line, a random one each pull)</label>
+      <textarea data-f="terms" placeholder="ocean waves&#10;beach sunset">${esc(it.termsText)}</textarea>
+      <label>Save as</label>
+      <div class="seg">${seg}</div>
+      <div class="hint">Entities: ${esc(ents)}</div>
+      <div class="thumbs">${thumbsHtml(it)}</div>
+      <div class="row" style="margin-top:12px"><button data-act="fetch" ${dirty ? "disabled title='Save first'" : ""}>Fetch now</button></div>
+    </div>`;
+  }).join("") || `<div class="card sub">No collections yet. Hit Add collection.</div>`;
+}
+
+function refreshThumbs() {
+  document.querySelectorAll(".card[data-i]").forEach(c => {
+    const it = items[+c.dataset.i];
+    if (it) c.querySelector(".thumbs").innerHTML = thumbsHtml(it);
+  });
+}
+
+function renderHeader() {
+  if (!state) return;
+  const jobs = items.reduce((n, it) => n + (it.name.trim() ? orientsOf(it.orientation).length : 0), 0);
+  const o = state.options;
+  const perHour = Math.round(jobs * 60 / o.interval_minutes * 10) / 10;
+  $("#status").textContent = `${jobs} image${jobs === 1 ? "" : "s"} every ${o.interval_minutes} min · about ${perHour} Unsplash requests/hour` +
+    (state.busy ? " · fetching now..." : "");
+  let b = "";
+  if (!o.has_key) b += `<div class="banner bad">No Unsplash Access Key yet. Add it on the add-on's <b>Configuration</b> tab, Save, then Restart the add-on.</div>`;
+  if (perHour > 45) b += `<div class="banner warn">That's close to Unsplash's 50 requests/hour limit. Raise the interval in Configuration or trim collections.</div>`;
+  $("#banners").innerHTML = b;
+}
+
+function fromServer(s) {
+  state = s;
+  items = s.collections.map(c => ({ name: c.name, termsText: c.search_terms.join("\n"), orientation: c.orientation }));
+  dirty = false;
+}
+
+async function load() {
+  try { fromServer(await api("api/state")); render(); renderHeader(); }
+  catch (e) { toast(e.message, true); }
+}
+
+// editing
+$("#list").addEventListener("input", e => {
+  const card = e.target.closest(".card[data-i]"); if (!card) return;
+  const it = items[+card.dataset.i], f = e.target.dataset.f;
+  if (f === "name") { it.name = e.target.value; card.querySelector(".hint").textContent =
+    "Entities: " + orientsOf(it.orientation).map(o => `image.${slugify(it.name) || "name"}_photos_${o}`).join("  ·  "); }
+  if (f === "terms") it.termsText = e.target.value;
+  if (!dirty) { dirty = true; document.querySelectorAll('[data-act="fetch"]').forEach(b => b.disabled = true); }
+  renderHeader();
+});
+
+$("#list").addEventListener("click", async e => {
+  const btn = e.target.closest("button[data-act]"); if (!btn) return;
+  const card = btn.closest(".card"), i = +card.dataset.i, it = items[i];
+  if (btn.dataset.act === "orient") { it.orientation = btn.dataset.o; dirty = true; render(); renderHeader(); }
+  if (btn.dataset.act === "del") {
+    if (confirm(`Delete "${it.name || "this collection"}"? Its images stay on disk but stop updating.`)) { items.splice(i, 1); dirty = true; render(); renderHeader(); }
+  }
+  if (btn.dataset.act === "fetch") {
+    try { await api("api/fetch", { slug: slugify(it.name) }); toast("Fetching " + it.name + "..."); poll(); }
+    catch (err) { toast(err.message, true); }
+  }
+});
+
+$("#add").onclick = () => { items.push({ name: "", termsText: "", orientation: "landscape" }); dirty = true; render(); renderHeader();
+  const last = document.querySelector(".card:last-of-type input.name"); if (last) last.focus(); };
+
+$("#save").onclick = async () => {
+  const payload = items.map(it => ({ name: it.name.trim(), orientation: it.orientation,
+    search_terms: it.termsText.split("\n").map(s => s.trim()).filter(Boolean) }));
+  try {
+    const r = await api("api/collections", { collections: payload });
+    toast(r.fetching ? `Saved. Pulling ${r.fetching} new photo${r.fetching === 1 ? "" : "s"}...` : "Saved.");
+    await load(); poll();
+  } catch (e) { toast(e.message, true); }
+};
+
+$("#fetchall").onclick = async () => {
+  try { const r = await api("api/fetch", {}); toast(`Fetching ${r.fetching} photo${r.fetching === 1 ? "" : "s"}...`); poll(); }
+  catch (e) { toast(e.message, true); }
+};
+
+// light polling so thumbnails/errors appear without clobbering what you're typing
+let pollTimer = null;
+function poll() {
+  clearInterval(pollTimer);
+  let n = 0;
+  pollTimer = setInterval(async () => {
+    try { state = await api("api/state"); refreshThumbs(); renderHeader(); } catch (e) {}
+    if (++n > 24 && !state.busy) clearInterval(pollTimer);
+  }, 5000);
+}
+
+load().then(poll);
+</script>
+</body>
+</html>
