@@ -15,7 +15,7 @@ import requests
 DATA_DIR = Path(os.environ.get("PP_DATA_DIR", "/data"))
 OPTIONS_FILE = DATA_DIR / "options.json"
 COLLECTIONS_FILE = DATA_DIR / "collections.json"
-PHOTO_DIR = Path(os.environ.get("PP_PHOTO_DIR", "/share/photo_puller"))
+PHOTO_DIR = Path(os.environ.get("PP_PHOTO_DIR", "/config/addon_configs/photo_puller"))
 UI_FILE = Path(os.environ.get("PP_UI_FILE", "/ui.html"))
 PORT = int(os.environ.get("PP_PORT", "8099"))
 MANIFEST = PHOTO_DIR / "collections.json"
