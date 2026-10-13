@@ -1,8 +1,13 @@
 # Changelog
 
-## 1.2.2
+## 1.2.1
 
-## Fixed Bugs
+### Fixed
+- The add-on couldn't tell Home Assistant when a new photo landed ("No SUPERVISOR_TOKEN" in
+  the log), so image entities didn't refresh on their own and new collections didn't get
+  entities until you reloaded the integration. The add-on now finds its token and notifies
+  Home Assistant properly.
+- The add-on log now says at startup whether its link to Home Assistant is working.
 
 ## 1.2.0
 
