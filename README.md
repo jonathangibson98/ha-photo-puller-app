@@ -14,7 +14,7 @@ Get a free Unsplash Access Key at https://unsplash.com/developers.
 ## Install the add-on
 
 1. Settings > Add-ons > Add-on Store > three dots (top right) > Repositories
-2. Paste `https://github.com/YOUR-USERNAME/ha-photo-puller` and click Add
+2. Paste `https://github.com/jonathangibson98/ha-photo-puller` and click Add
 3. Refresh the page, scroll down, open **Photo Puller**, and Install
 4. Configuration tab: paste your Unsplash Access Key, pick an interval and image size, Save
 5. Start, then open **Photo Puller** from the sidebar (or the add-on's Open Web UI button) to set up what to pull
@@ -22,7 +22,7 @@ Get a free Unsplash Access Key at https://unsplash.com/developers.
 ## Install the integration (HACS)
 
 1. HACS > three dots (top right) > Custom repositories
-2. Paste `https://github.com/YOUR-USERNAME/ha-photo-puller`, set Type to **Integration**, Add
+2. Paste `https://github.com/jonathangibson98/ha-photo-puller`, set Type to **Integration**, Add
 3. Find **Photo Puller** in HACS, Download, then restart Home Assistant
 4. Settings > Devices & services > Add Integration > **Photo Puller** > Submit
 
