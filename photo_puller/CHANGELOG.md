@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.2.1
+## 1.2.6
 
 ### Fixed
 - The add-on couldn't tell Home Assistant when a new photo landed ("No SUPERVISOR_TOKEN" in
