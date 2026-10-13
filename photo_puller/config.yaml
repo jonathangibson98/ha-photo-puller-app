@@ -1,5 +1,5 @@
 name: "Photo Puller"
-version: "1.2.1"
+version: "1.2.6"
 slug: photo_puller
 description: "Pulls random Unsplash photos for collections you manage in a web UI (city, ocean, whatever) and tells Home Assistant when a new one lands"
 arch:
